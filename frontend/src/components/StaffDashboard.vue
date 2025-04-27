@@ -20,7 +20,10 @@
   import axios from 'axios'
   
   const feedbacks = ref([])
-  
+  const response = await axios.get('https://visa-feedback-system.onrender.com/feedbacks', {
+  headers: { Authorization: `Bearer ${token}` }
+})
+
   onMounted(async () => {
     const token = localStorage.getItem('token')
     const response = await axios.get('http://localhost:5000/feedbacks', {

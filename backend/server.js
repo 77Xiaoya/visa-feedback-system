@@ -237,7 +237,95 @@ app.post('/logout', (req, res) => {
   req.session.destroy();
   res.json({ success: true, message: 'Logged out successfully' });
 });
-
+// 学生注册
+app.post('/student/register', async (req, res) => {
+    const { studentId, password } = req.body;
+  
+    let students = [];
+    if (fs.existsSync('students.json')) {
+      students = JSON.parse(fs.readFileSync('students.json'));
+    }
+  
+    const existingStudent = students.find(s => s.studentId === studentId);
+    if (existingStudent) {
+      return res.status(400).json({ success: false, message: 'Student already registered' });
+    }
+  
+    const passwordHash = await bcrypt.hash(password, 10);
+  
+    const newStudent = {
+      id: students.length + 1,
+      studentId,
+      passwordHash
+    };
+  
+    students.push(newStudent);
+    fs.writeFileSync('students.json', JSON.stringify(students, null, 2));
+  
+    res.json({ success: true, message: 'Student registered successfully' });
+  });
+  // 学生登录
+app.post('/student/login', async (req, res) => {
+    const { studentId, password } = req.body;
+  
+    let students = [];
+    if (fs.existsSync('students.json')) {
+      students = JSON.parse(fs.readFileSync('students.json'));
+    }
+  
+    const student = students.find(s => s.studentId === studentId);
+    if (!student) {
+      return res.status(400).json({ success: false, message: 'Invalid credentials' });
+    }
+  
+    const match = await bcrypt.compare(password, student.passwordHash);
+    if (!match) {
+      return res.status(400).json({ success: false, message: 'Invalid credentials' });
+    }
+  
+    const token = jwt.sign({ id: student.id, studentId: student.studentId }, JWT_SECRET, { expiresIn: '2h' });
+  
+    res.json({ success: true, token });
+  });
+  app.post('/submit-feedback', verifyToken, upload.single('file'), (req, res) => {
+    const file = req.file;
+    const description = req.body.description || '无描述';
+  
+    if (!file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+  
+    const fileUrl = `https://visa-feedback-system.onrender.com/uploads/${file.filename}`;
+    let feedbacks = [];
+    if (fs.existsSync('feedback.json')) {
+      feedbacks = JSON.parse(fs.readFileSync('feedback.json'));
+    }
+  
+    const newFeedback = {
+      id: feedbacks.length + 1,
+      studentId: req.user.studentId || "匿名",
+      description: description,
+      fileUrl: fileUrl,
+      status: "未处理",
+      reply: ""
+    };
+  
+    feedbacks.push(newFeedback);
+    fs.writeFileSync('feedback.json', JSON.stringify(feedbacks, null, 2));
+  
+    res.json({ success: true, message: 'Feedback submitted', data: newFeedback });
+  });
+  app.get('/student/feedbacks', verifyToken, (req, res) => {
+    let feedbacks = [];
+    if (fs.existsSync('feedback.json')) {
+      feedbacks = JSON.parse(fs.readFileSync('feedback.json'));
+    }
+  
+    const studentFeedbacks = feedbacks.filter(f => f.studentId === req.user.studentId);
+  
+    res.json(studentFeedbacks);
+  });
+  
 // ======== 启动服务器 ========
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
